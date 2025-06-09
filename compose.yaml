@@ -1,4 +1,3 @@
-# Comment out the below 'include' block to use Retool-managed Temporal (Enterprise license)
 include:
   - temporal.yaml
 
@@ -15,8 +14,6 @@ services:
       - frontend
       - backend
       - code-executor
-    depends_on:
-      - postgres
     restart: always
 
   jobs-runner:
@@ -27,8 +24,6 @@ services:
       - SERVICE_TYPE=JOBS_RUNNER
     networks:
       - backend
-    depends_on:
-      - postgres
     restart: always
 
   workflows-worker:
@@ -37,12 +32,14 @@ services:
     env_file: docker.env
     environment:
       - SERVICE_TYPE=WORKFLOW_TEMPORAL_WORKER
+      - WORKFLOW_TEMPORAL_NAMESPACE=workflows
+      - WORKFLOW_TASK_QUEUE=workflows
+      - WORKFLOW_TEMPORAL_CLUSTER_FRONTEND_HOST=192.168.100.215
+      - WORKFLOW_TEMPORAL_CLUSTER_FRONTEND_PORT=7233
       - NODE_OPTIONS=--max_old_space_size=1024
     networks:
       - backend
       - code-executor
-    depends_on:
-      - postgres
     restart: always
 
   workflows-backend:
@@ -51,11 +48,13 @@ services:
     env_file: docker.env
     environment:
       - SERVICE_TYPE=WORKFLOW_BACKEND,DB_CONNECTOR,DB_SSH_CONNECTOR
+      - WORKFLOW_TEMPORAL_NAMESPACE=workflows
+      - WORKFLOW_TASK_QUEUE=workflows
+      - WORKFLOW_TEMPORAL_CLUSTER_FRONTEND_HOST=192.168.100.215
+      - WORKFLOW_TEMPORAL_CLUSTER_FRONTEND_PORT=7233
     networks:
       - backend
       - code-executor
-    depends_on:
-      - postgres
     restart: always
 
   code-executor:
@@ -64,39 +63,16 @@ services:
       target: code-executor
     environment:
       - NODE_OPTIONS=--max_old_space_size=1024
+    privileged: true
     networks:
       - code-executor
-    # Privileged is required to sandbox user code execution and to use custom libraries
-    # Set to false if your deployment method does not allow this
-    privileged: true
     restart: always
 
-  # Retool's internal DB, we recommend using an externally hosted database: https://docs.retool.com/docs/configuring-retools-storage-database
-  postgres:
-    image: postgres:16.8
-    env_file: docker.env
-    networks:
-      - backend
-    volumes:
-      - data:/var/lib/postgresql/data
-    restart: always
-  
-  retooldb-postgres:
-    image: postgres:16.8
-    env_file: retooldb.env
-    networks:
-      - backend
-    volumes:
-      - retooldb-data:/var/lib/postgresql/data
-    restart: always
-
-  # Optional Nginx container for handling TLS for your domain (requires setting DOMAINS and STAGE)
   https-portal:
     image: tryretool/https-portal:latest
     env_file: docker.env
     environment:
-      # Change 'local' -> 'production' below once your domain is pointing to this server
-      STAGE: local 
+      STAGE: local
       CLIENT_MAX_BODY_SIZE: 40M
       KEEPALIVE_TIMEOUT: 605
       PROXY_CONNECT_TIMEOUT: 600
@@ -115,5 +91,7 @@ networks:
   code-executor:
 
 volumes:
+  data:
+  retooldb-data:
   data:
   retooldb-data:
